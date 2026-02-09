@@ -70,32 +70,53 @@ class MainActivity : ComponentActivity() {
     }
 
     override fun dispatchKeyEvent(event: KeyEvent?): Boolean {
-        if (event?.action == KeyEvent.ACTION_DOWN) {
-            val keyCode = event.keyCode
-            val keyName = KeyEvent.keyCodeToString(keyCode)
-            val deviceName = event.device?.name ?: "Unknown"
-            val deviceId = event.deviceId
-
-            Log.d(TAG, "Key pressed: $keyName (code: $keyCode) from device: $deviceName (id: $deviceId)")
-
-            return when (keyCode) {
-                KeyEvent.KEYCODE_DPAD_LEFT -> {
-                    Log.d(TAG, "DPAD_LEFT detected - turning to previous page")
-                    controllerViewModel.onDpadLeft()
-                    true // Consume the event so Android doesn't use it for navigation
-                }
-                KeyEvent.KEYCODE_DPAD_RIGHT -> {
-                    Log.d(TAG, "DPAD_RIGHT detected - turning to next page")
-                    controllerViewModel.onDpadRight()
-                    true // Consume the event so Android doesn't use it for navigation
-                }
-                else -> {
-                    Log.d(TAG, "Key $keyName not mapped to any action")
-                    super.dispatchKeyEvent(event)
+        val keyCode = event?.keyCode ?: return super.dispatchKeyEvent(event)
+        
+        // Only handle gamepad/controller buttons
+        if (!isGamepadButton(keyCode)) {
+            return super.dispatchKeyEvent(event)
+        }
+        
+        val keyName = KeyEvent.keyCodeToString(keyCode)
+        val deviceName = event.device?.name ?: "Unknown"
+        
+        when (event.action) {
+            KeyEvent.ACTION_DOWN -> {
+                Log.d(TAG, "Button pressed: $keyName (code: $keyCode) from device: $deviceName")
+                val consumed = controllerViewModel.onButtonPressed(keyCode)
+                if (consumed) {
+                    Log.d(TAG, "Button $keyName consumed by app")
+                    return true
                 }
             }
+            KeyEvent.ACTION_UP -> {
+                Log.d(TAG, "Button released: $keyName (code: $keyCode)")
+                controllerViewModel.onButtonReleased(keyCode)
+                // Don't consume UP events to allow system to handle them properly
+            }
         }
+        
         return super.dispatchKeyEvent(event)
+    }
+    
+    private fun isGamepadButton(keyCode: Int): Boolean {
+        return when (keyCode) {
+            KeyEvent.KEYCODE_DPAD_UP,
+            KeyEvent.KEYCODE_DPAD_DOWN,
+            KeyEvent.KEYCODE_DPAD_LEFT,
+            KeyEvent.KEYCODE_DPAD_RIGHT,
+            KeyEvent.KEYCODE_BUTTON_A,
+            KeyEvent.KEYCODE_BUTTON_B,
+            KeyEvent.KEYCODE_BUTTON_X,
+            KeyEvent.KEYCODE_BUTTON_Y,
+            KeyEvent.KEYCODE_BUTTON_L1,
+            KeyEvent.KEYCODE_BUTTON_L2,
+            KeyEvent.KEYCODE_BUTTON_R1,
+            KeyEvent.KEYCODE_BUTTON_R2,
+            KeyEvent.KEYCODE_BUTTON_SELECT,
+            KeyEvent.KEYCODE_BUTTON_START -> true
+            else -> false
+        }
     }
     
     override fun onResume() {
@@ -146,7 +167,7 @@ fun MainScreen(
                 ControllerScreen(controllerViewModel)
             }
             composable(Screen.Settings.route) {
-                SettingsScreen(settingsViewModel)
+                SettingsScreen(settingsViewModel, controllerViewModel)
             }
         }
     }
