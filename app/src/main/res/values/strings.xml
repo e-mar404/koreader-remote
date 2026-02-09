@@ -1,0 +1,15 @@
+<resources>
+    <string name="app_name">KOReader Controller</string>
+    <string name="title_controller">Controller</string>
+    <string name="title_settings">Settings</string>
+    <string name="settings_ip_hint">KOReader IP Address</string>
+    <string name="settings_port_hint">Port</string>
+    <string name="settings_save">Save</string>
+    <string name="connection_status_connected">Connected</string>
+    <string name="connection_status_disconnected">Disconnected</string>
+    <string name="connection_status_error">Connection Error</string>
+    <string name="controller_instructions">Pair your 8BitDo controller and use D-Pad Left/Right to turn pages</string>
+    <string name="settings_saved">Settings saved successfully</string>
+    <string name="invalid_ip">Invalid IP address format</string>
+    <string name="invalid_port">Port must be between 1-65535</string>
+</resources>

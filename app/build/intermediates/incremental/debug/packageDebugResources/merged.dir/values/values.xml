@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="black">#FF000000</color>
+    <color name="purple_200">#FFBB86FC</color>
+    <color name="purple_500">#FF6200EE</color>
+    <color name="purple_700">#FF3700B3</color>
+    <color name="teal_200">#FF03DAC5</color>
+    <color name="teal_700">#FF018786</color>
+    <color name="white">#FFFFFFFF</color>
+    <string name="app_name">KOReader Controller</string>
+    <string name="connection_status_connected">Connected</string>
+    <string name="connection_status_disconnected">Disconnected</string>
+    <string name="connection_status_error">Connection Error</string>
+    <string name="controller_instructions">Pair your 8BitDo controller and use D-Pad Left/Right to turn pages</string>
+    <string name="invalid_ip">Invalid IP address format</string>
+    <string name="invalid_port">Port must be between 1-65535</string>
+    <string name="settings_ip_hint">KOReader IP Address</string>
+    <string name="settings_port_hint">Port</string>
+    <string name="settings_save">Save</string>
+    <string name="settings_saved">Settings saved successfully</string>
+    <string name="title_controller">Controller</string>
+    <string name="title_settings">Settings</string>
+    <style name="Theme.KOReaderController" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:statusBarColor">@color/purple_700</item>
+    </style>
+</resources>
