@@ -1,5 +1,7 @@
 package com.koreader.controller.ui
 
+import android.content.Context
+import android.os.PowerManager
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -12,8 +14,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.BatteryAlert
 import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Error
 import androidx.compose.material.icons.filled.Refresh
@@ -22,7 +24,6 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -41,12 +42,11 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
- 
 import com.koreader.controller.R
 import com.koreader.controller.data.ConnectionStatus
 import com.koreader.controller.ui.theme.GreenSuccess
@@ -55,31 +55,28 @@ import com.koreader.controller.ui.theme.RedError
 import com.koreader.controller.viewmodel.ControllerUiState
 import com.koreader.controller.viewmodel.ControllerViewModel
 import com.koreader.controller.viewmodel.SettingsViewModel
- 
 
 @Composable
 fun SettingsScreen(
-    viewModel: SettingsViewModel,
-    controllerViewModel: ControllerViewModel
+    settingsViewModel: SettingsViewModel,
+    controllerViewModel: ControllerViewModel,
+    isUltraDimMode: Boolean = false
 ) {
-    val uiState by viewModel.uiState.collectAsState()
+    val uiState by settingsViewModel.uiState.collectAsState()
     val controllerState by controllerViewModel.uiState.collectAsState()
     val snackbarHostState = remember { SnackbarHostState() }
     var isEditing by remember { mutableStateOf(false) }
 
-    // Reverted: remove gamepad/back-like input swallowing here to revert to original behavior
-
-    // Handle success/error messages
     LaunchedEffect(uiState.saveSuccess, uiState.saveError) {
         when {
             uiState.saveSuccess -> {
                 snackbarHostState.showSnackbar("Settings saved successfully")
-                viewModel.clearMessages()
+                settingsViewModel.clearMessages()
                 isEditing = false
             }
             uiState.saveError != null -> {
                 snackbarHostState.showSnackbar(uiState.saveError!!)
-                viewModel.clearMessages()
+                settingsViewModel.clearMessages()
             }
         }
     }
@@ -101,10 +98,9 @@ fun SettingsScreen(
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // Unified Banner - Connection Status with Edit functionality
             if (controllerState is ControllerUiState.Ready) {
                 val state = controllerState as ControllerUiState.Ready
-                UnifiedConnectionBanner(
+                ConnectionSettingsCard(
                     status = state.connectionStatus,
                     settings = state.settings,
                     ipAddress = uiState.ipAddress,
@@ -117,14 +113,43 @@ fun SettingsScreen(
                     isRefreshing = state.isProcessing,
                     onRefresh = { controllerViewModel.checkConnection() },
                     onEditClick = { isEditing = !isEditing },
-                    onIpChange = viewModel::onIpAddressChanged,
-                    onPortChange = viewModel::onPortChanged,
-                    onSave = viewModel::saveSettings
+                    onIpChange = settingsViewModel::onIpAddressChanged,
+                    onPortChange = settingsViewModel::onPortChanged,
+                    onSave = settingsViewModel::saveSettings
                 )
+            }
+            
+            Spacer(modifier = Modifier.height(16.dp))
+            
+            BatteryOptimizationCard()
+            
+            if (isUltraDimMode) {
+                Spacer(modifier = Modifier.height(16.dp))
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.primaryContainer
+                    )
+                ) {
+                    Column(
+                        modifier = Modifier.padding(16.dp)
+                    ) {
+                        Text(
+                            text = "Ultra Dim Mode is ON",
+                            style = MaterialTheme.typography.titleMedium,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            text = "Screen is dimmed to 8% brightness (92% dark overlay). Controller remains active. Tap anywhere to restore normal brightness.",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer
+                        )
+                    }
+                }
             }
         }
 
-        // Snackbar
         SnackbarHost(
             hostState = snackbarHostState,
             modifier = Modifier.align(Alignment.BottomCenter)
@@ -138,7 +163,7 @@ fun SettingsScreen(
 }
 
 @Composable
-private fun UnifiedConnectionBanner(
+private fun ConnectionSettingsCard(
     status: ConnectionStatus,
     settings: com.koreader.controller.data.Settings,
     ipAddress: String,
@@ -184,13 +209,11 @@ private fun UnifiedConnectionBanner(
             modifier = Modifier.padding(20.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            // Header with status only (edit button moved to the row)
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.Start,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // Status indicator only
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -211,9 +234,7 @@ private fun UnifiedConnectionBanner(
 
             Spacer(modifier = Modifier.height(12.dp))
 
-            // Current settings display (always visible)
             if (!isEditing) {
-                // View mode - show current connection info in a single row
                 Card(
                     modifier = Modifier.fillMaxWidth(),
                     colors = CardDefaults.cardColors(
@@ -227,14 +248,12 @@ private fun UnifiedConnectionBanner(
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        // IP:Port on the left
                         Text(
                             text = "$ipAddress:$port",
                             style = MaterialTheme.typography.bodyLarge,
                             color = MaterialTheme.colorScheme.onSurface
                         )
 
-                        // Refresh and Edit buttons on the right
                         Row(
                             horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
@@ -267,7 +286,6 @@ private fun UnifiedConnectionBanner(
                     }
                 }
             } else {
-                // Edit mode - show input fields
                 Card(
                     modifier = Modifier.fillMaxWidth(),
                     colors = CardDefaults.cardColors(
@@ -287,7 +305,6 @@ private fun UnifiedConnectionBanner(
                             modifier = Modifier.padding(bottom = 4.dp)
                         )
 
-                        // IP Address Field
                         OutlinedTextField(
                             value = ipAddress,
                             onValueChange = onIpChange,
@@ -316,7 +333,6 @@ private fun UnifiedConnectionBanner(
                             enabled = !isLoading
                         )
 
-                        // Port Field
                         OutlinedTextField(
                             value = port,
                             onValueChange = onPortChange,
@@ -345,7 +361,6 @@ private fun UnifiedConnectionBanner(
                             enabled = !isLoading
                         )
 
-                        // Action buttons
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -379,6 +394,65 @@ private fun UnifiedConnectionBanner(
                         }
                     }
                 }
+            }
+        }
+    }
+}
+
+@Composable
+private fun BatteryOptimizationCard() {
+    val context = LocalContext.current
+    val powerManager = context.getSystemService(Context.POWER_SERVICE) as PowerManager
+    val isIgnoringBatteryOptimizations = powerManager.isIgnoringBatteryOptimizations(context.packageName)
+    
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(
+            containerColor = if (isIgnoringBatteryOptimizations)
+                MaterialTheme.colorScheme.surfaceVariant
+            else
+                MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.5f)
+        ),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+    ) {
+        Column(
+            modifier = Modifier.padding(20.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.Start,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(
+                    imageVector = Icons.Default.BatteryAlert,
+                    contentDescription = null,
+                    tint = if (isIgnoringBatteryOptimizations) 
+                        MaterialTheme.colorScheme.primary 
+                    else 
+                        MaterialTheme.colorScheme.error,
+                    modifier = Modifier.size(28.dp)
+                )
+                Spacer(modifier = Modifier.size(8.dp))
+                Text(
+                    text = "Battery Optimization",
+                    style = MaterialTheme.typography.titleMedium
+                )
+            }
+            
+            Spacer(modifier = Modifier.height(12.dp))
+            
+            if (isIgnoringBatteryOptimizations) {
+                Text(
+                    text = "Battery optimization is disabled. The app can keep the screen active reliably.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            } else {
+                Text(
+                    text = "Battery optimization is enabled. This may interfere with the Keep Screen Active feature.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onErrorContainer
+                )
             }
         }
     }

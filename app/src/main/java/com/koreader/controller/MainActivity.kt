@@ -1,30 +1,45 @@
 package com.koreader.controller
 
 import android.os.Bundle
+import android.os.PowerManager
 import android.util.Log
 import android.view.KeyEvent
+import android.view.View
+import android.view.WindowManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.viewModels
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Gamepad
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.dp
 import androidx.navigation.NavDestination.Companion.hierarchy
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import com.google.accompanist.systemuicontroller.rememberSystemUiController
 import com.koreader.controller.ui.ControllerScreen
 import com.koreader.controller.ui.SettingsScreen
 import com.koreader.controller.ui.theme.KOReaderControllerTheme
@@ -56,12 +71,37 @@ class MainActivity : ComponentActivity() {
         SettingsViewModel.Factory(app.settingsRepository)
     }
     
+    private lateinit var wakeLock: PowerManager.WakeLock
+    
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        
+        // Acquire wake lock to keep CPU running
+        val powerManager = getSystemService(POWER_SERVICE) as PowerManager
+        wakeLock = powerManager.newWakeLock(
+            PowerManager.PARTIAL_WAKE_LOCK,
+            "KOReaderController::WakeLock"
+        )
+        wakeLock.acquire(24*60*60*1000L) // 24 hours
+        
+        // Keep screen on - this is the key to making controller work when "screen is off"
+        window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        
         setContent {
             KOReaderControllerTheme {
-                MainScreen(controllerViewModel, settingsViewModel)
+                MainScreen(
+                    controllerViewModel = controllerViewModel,
+                    settingsViewModel = settingsViewModel
+                )
             }
+        }
+    }
+    
+    override fun onDestroy() {
+        super.onDestroy()
+        // Release wake lock when app is destroyed
+        if (wakeLock.isHeld) {
+            wakeLock.release()
         }
     }
     
@@ -92,7 +132,6 @@ class MainActivity : ComponentActivity() {
             KeyEvent.ACTION_UP -> {
                 Log.d(TAG, "Button released: $keyName (code: $keyCode)")
                 controllerViewModel.onButtonReleased(keyCode)
-                // Don't consume UP events to allow system to handle them properly
             }
         }
         
@@ -132,42 +171,110 @@ fun MainScreen(
 ) {
     val navController = rememberNavController()
     val items = listOf(Screen.Controller, Screen.Settings)
+    val systemUiController = rememberSystemUiController()
     
-    Scaffold(
-        bottomBar = {
-            NavigationBar {
-                val navBackStackEntry by navController.currentBackStackEntryAsState()
-                val currentDestination = navBackStackEntry?.destination
-                
-                items.forEach { screen ->
-                    NavigationBarItem(
-                        icon = screen.icon,
-                        label = screen.label,
-                        selected = currentDestination?.hierarchy?.any { it.route == screen.route } == true,
-                        onClick = {
-                            navController.navigate(screen.route) {
-                                popUpTo(navController.graph.findStartDestination().id) {
-                                    saveState = true
+    // State for ultra dim mode (saves battery while keeping app active)
+    var isUltraDimMode by rememberSaveable { mutableStateOf(false) }
+    
+    // Get theme colors
+    val surfaceColor = MaterialTheme.colorScheme.surface
+    val backgroundColor = MaterialTheme.colorScheme.background
+    
+    // Apply system UI changes when dim mode changes
+    SideEffect {
+        if (isUltraDimMode) {
+            // Dim the status bar and navigation bar to minimum
+            systemUiController.setStatusBarColor(
+                color = Color.Black,
+                darkIcons = false
+            )
+            systemUiController.setNavigationBarColor(
+                color = Color.Black,
+                darkIcons = false
+            )
+        } else {
+            // Match system bars to app theme - use background color for seamless look
+            systemUiController.setStatusBarColor(
+                color = backgroundColor,
+                darkIcons = false
+            )
+            systemUiController.setNavigationBarColor(
+                color = backgroundColor,
+                darkIcons = false
+            )
+        }
+    }
+    
+    Box(modifier = Modifier.fillMaxSize()) {
+        // Normal UI
+        Scaffold(
+            bottomBar = {
+                NavigationBar {
+                    val navBackStackEntry by navController.currentBackStackEntryAsState()
+                    val currentDestination = navBackStackEntry?.destination
+                    
+                    items.forEach { screen ->
+                        NavigationBarItem(
+                            icon = screen.icon,
+                            label = screen.label,
+                            selected = currentDestination?.hierarchy?.any { it.route == screen.route } == true,
+                            onClick = {
+                                navController.navigate(screen.route) {
+                                    popUpTo(navController.graph.findStartDestination().id) {
+                                        saveState = true
+                                    }
+                                    launchSingleTop = true
+                                    restoreState = true
                                 }
-                                launchSingleTop = true
-                                restoreState = true
                             }
-                        }
+                        )
+                    }
+                }
+            }
+        ) { innerPadding ->
+            NavHost(
+                navController = navController,
+                startDestination = Screen.Controller.route,
+                modifier = Modifier.padding(innerPadding)
+            ) {
+                composable(Screen.Controller.route) {
+                    ControllerScreen(
+                        viewModel = controllerViewModel,
+                        isUltraDimMode = isUltraDimMode,
+                        onToggleUltraDimMode = { isUltraDimMode = !isUltraDimMode }
+                    )
+                }
+                composable(Screen.Settings.route) {
+                    SettingsScreen(
+                        settingsViewModel = settingsViewModel,
+                        controllerViewModel = controllerViewModel,
+                        isUltraDimMode = isUltraDimMode
                     )
                 }
             }
         }
-    ) { innerPadding ->
-        NavHost(
-            navController = navController,
-            startDestination = Screen.Controller.route,
-            modifier = Modifier.padding(innerPadding)
-        ) {
-            composable(Screen.Controller.route) {
-                ControllerScreen(controllerViewModel)
-            }
-            composable(Screen.Settings.route) {
-                SettingsScreen(settingsViewModel, controllerViewModel)
+        
+        // Ultra dim overlay - very dark but not completely black (saves battery)
+        // Using 92% darkness (0.92f alpha) - visible enough to know it's on, dark enough to save battery
+        if (isUltraDimMode) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color.Black.copy(alpha = 0.92f))
+                    .clickable { 
+                        // Tap anywhere to exit dim mode
+                        isUltraDimMode = false 
+                    }
+            ) {
+                // Show dimmed hint text
+                Text(
+                    text = "Tap to wake",
+                    color = Color.Gray.copy(alpha = 0.5f),
+                    modifier = Modifier
+                        .align(androidx.compose.ui.Alignment.BottomCenter)
+                        .padding(bottom = 48.dp),
+                    style = MaterialTheme.typography.bodySmall
+                )
             }
         }
     }

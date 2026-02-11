@@ -11,6 +11,9 @@
     <uses-permission android:name="android.permission.BLUETOOTH_ADMIN" />
     <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
     
+    <!-- Wake lock to keep CPU running when screen is "off" (black) -->
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+    
     <!-- Hardware features -->
     <uses-feature
         android:name="android.hardware.bluetooth"

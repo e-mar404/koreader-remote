@@ -16,7 +16,9 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -45,7 +47,11 @@ import com.koreader.controller.viewmodel.GamepadButton
 import com.koreader.controller.viewmodel.availableButtons
 
 @Composable
-fun ControllerScreen(viewModel: ControllerViewModel) {
+fun ControllerScreen(
+    viewModel: ControllerViewModel,
+    isUltraDimMode: Boolean = false,
+    onToggleUltraDimMode: () -> Unit = {}
+) {
     val uiState by viewModel.uiState.collectAsState()
     var selectedButton by remember { mutableStateOf<GamepadButton?>(null) }
 
@@ -54,20 +60,33 @@ fun ControllerScreen(viewModel: ControllerViewModel) {
             .fillMaxSize()
             .padding(16.dp)
     ) {
-        when (val state = uiState) {
-            is ControllerUiState.Loading -> {
-                CircularProgressIndicator(
-                    modifier = Modifier.align(Alignment.Center)
-                )
-            }
-            is ControllerUiState.Ready -> {
-                GamepadLayout(
-                    state = state,
-                    onConfigureClick = { selectedButton = it }
-                )
-            }
-            is ControllerUiState.Error -> {
-                ErrorContent(state.message)
+        Column(modifier = Modifier.fillMaxSize()) {
+            // Ultra Dim Mode Toggle Card
+            UltraDimModeCard(
+                isEnabled = isUltraDimMode,
+                onToggle = onToggleUltraDimMode
+            )
+            
+            Spacer(modifier = Modifier.height(8.dp))
+            
+            // Main content
+            Box(modifier = Modifier.weight(1f)) {
+                when (val state = uiState) {
+                    is ControllerUiState.Loading -> {
+                        CircularProgressIndicator(
+                            modifier = Modifier.align(Alignment.Center)
+                        )
+                    }
+                    is ControllerUiState.Ready -> {
+                        GamepadLayout(
+                            state = state,
+                            onConfigureClick = { selectedButton = it }
+                        )
+                    }
+                    is ControllerUiState.Error -> {
+                        ErrorContent(state.message)
+                    }
+                }
             }
         }
 
@@ -84,6 +103,54 @@ fun ControllerScreen(viewModel: ControllerViewModel) {
                     viewModel.setButtonMapping(button.keyCode, command)
                     selectedButton = null
                 }
+            )
+        }
+    }
+}
+
+@Composable
+private fun UltraDimModeCard(
+    isEnabled: Boolean,
+    onToggle: () -> Unit
+) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { onToggle() },
+        colors = CardDefaults.cardColors(
+            containerColor = if (isEnabled) 
+                MaterialTheme.colorScheme.primaryContainer 
+            else 
+                MaterialTheme.colorScheme.surfaceVariant
+        )
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = "Ultra Dim Mode",
+                    style = MaterialTheme.typography.titleMedium
+                )
+                Text(
+                    text = if (isEnabled) 
+                        "Screen dimmed 92% - battery saving active"
+                    else 
+                        "Screen at normal brightness",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            
+            Spacer(modifier = Modifier.size(16.dp))
+            
+            Switch(
+                checked = isEnabled,
+                onCheckedChange = { onToggle() }
             )
         }
     }

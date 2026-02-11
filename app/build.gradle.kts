@@ -70,6 +70,9 @@ dependencies {
     // Navigation
     implementation("androidx.navigation:navigation-compose:2.7.5")
     
+    // System UI Controller (for status bar and navigation bar)
+    implementation("com.google.accompanist:accompanist-systemuicontroller:0.32.0")
+    
     // DataStore
     implementation("androidx.datastore:datastore-preferences:1.0.0")
     
